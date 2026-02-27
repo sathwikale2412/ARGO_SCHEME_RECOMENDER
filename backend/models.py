@@ -18,7 +18,8 @@ def init_db():
         income_limit REAL,
         subsidy REAL,
         documents TEXT,
-        deadline TEXT
+        deadline TEXT,
+        description TEXT
     )
     """)
 
