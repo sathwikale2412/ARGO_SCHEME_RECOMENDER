@@ -1,0 +1,111 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #f4f6f9;
+}
+
+.hero {
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  color: white;
+  padding: 50px 20px;
+  text-align: center;
+}
+
+.container {
+  max-width: 1000px;
+  margin: -40px auto 40px;
+  background: white;
+  padding: 30px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+select, input {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+button.primary-btn {
+  background: #ff5a5f;
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.scheme-card {
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+.top-badge {
+  background: #2e7d32;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.match-bar-container {
+  height: 8px;
+  background: #eee;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.match-bar {
+  height: 8px;
+  background: #ff5a5f;
+  border-radius: 6px;
+}
+
+.update-btn {
+  background: #2e7d32;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  cursor: pointer;
+}
+/* DARK MODE */
+
+.dark body {
+  background: #121212;
+  color: white;
+}
+
+.dark .container {
+  background: #1e1e1e;
+  color: white;
+}
+
+.dark select,
+.dark input {
+  background: #2a2a2a;
+  color: white;
+  border: 1px solid #444;
+}
+
+.dark .scheme-card {
+  background: #2a2a2a;
+  color: white;
+}
+
+.dark .match-bar-container {
+  background: #444;
+}
