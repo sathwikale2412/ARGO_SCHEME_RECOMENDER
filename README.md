@@ -47,6 +47,23 @@ Browser (React + Vite)  ──▶  /api/*  (Vercel Python function)  ──▶  
 `503` means the function is deployed without `SUPABASE_URL` / `SUPABASE_ANON_KEY`;
 it never falls back to fake data.
 
+`/api/get_schemes` validates every field before touching the database: a missing state, a
+non-numeric `land` or a negative `income` answers `400` with the reason, because reading
+garbage as 0 acres would come back as a confident, wrong eligibility answer. `/api/chat`
+accepts only a 1-500 character string.
+
+Any other failure answers with one sentence and a `ref` — `"ref": "8f3c21d0"`, for example.
+The exception itself (table names, the PostgREST body, the project URL) goes to the Vercel
+function log instead of the visitor. A rate-limit `429` carries the same shape.
+
+Catalogue reads are limited to **30 per minute per address**. The counter lives inside one
+warm instance, so it is a brake rather than a guarantee: a stateless function cannot share
+a single global count.
+
+```bash
+python api/test_gateway.py   # 17 checks — validation, generic errors, rate limit; no Supabase needed
+```
+
 ### Writes
 
 Adding a scheme, recording a sign-in and saving an eligibility check all go **directly
