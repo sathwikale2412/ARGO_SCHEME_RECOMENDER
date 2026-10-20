@@ -1,0 +1,21 @@
+# Node
+node_modules
+dist
+*.local
+
+# Local secrets — only the template is tracked
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+api/__pycache__/
+
+# The SQLite catalogue is a build artefact of backend/seed_data.py; Postgres is the
+# source of truth in deployment, so it is no longer committed.
+backend/schemes.db
+
+.vercel
+.netlify
