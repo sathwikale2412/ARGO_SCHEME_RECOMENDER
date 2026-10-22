@@ -84,7 +84,11 @@ export async function recordCheck(userId, form, matchCount) {
     income: form.income,
     match_count: matchCount
   });
-  if (error) console.error('Failed to save eligibility check', error.message);
+  if (error) {
+    console.error('Failed to save eligibility check', error.message);
+    // Generic wording: the raw Postgres message names tables and policies.
+    throw new Error('This check is shown, but it was not added to your saved history.');
+  }
 }
 
 export async function fetchRecentChecks(userId) {

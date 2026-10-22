@@ -42,7 +42,7 @@ Browser (React + Vite)  ──▶  /api/*  (Vercel Python function)  ──▶  
 | `/api/schemes` | GET | — | `{ count, schemes, catalogue }` — every scheme in the catalogue |
 | `/api/schemes` | POST | — | `405` by design; see "Writes" below |
 | `/api/get_schemes` | POST | `{state, crop, category, land, income}` | `{ status, results, catalogue }` |
-| `/api/chat` | POST | `{ message }` | `{ reply, schemes, catalogue }` — keyword search over state/crop/category |
+| `/api/chat` | POST | `{ message }` | `{ reply, schemes, catalogue }` — ranked keyword search over name/state/crop/category |
 
 Every answer carries `catalogue`, so a caller can tell a live register from demo data:
 
@@ -85,6 +85,14 @@ against the wrong rows matches **nothing**, because resolving a farmer into a sc
 they are not in is worse than the empty result the page explains. The dropdown is still
 built from the distinct categories in the catalogue, so the golden path never relies on
 tolerance.
+
+The free-text box (`POST /api/chat` → `search_by_keyword()`) is the second deviation. The
+original asked whether the *whole question* sat inside one field, so any sentence longer
+than a single word matched nothing — "drip irrigation in Maharashtra" came back empty while
+the catalogue held that row. It now splits the question into words, drops the ones a person
+uses to ask rather than to filter (`for`, `what`, `scheme`), matches the rest against the
+scheme name as well as state, crop and category, and returns the ten rows holding the most
+matches.
 
 ### Reads
 
@@ -164,6 +172,11 @@ Python function reads.
 | `schemes` | `SELECT` — anyone (public catalogue). `INSERT` — authenticated users only, row tagged `added_by`. |
 | `argo_logins` | `SELECT` / `INSERT` — own `user_id` only. |
 | `argo_checks` | `SELECT` / `INSERT` — own `user_id` only. |
+
+No table grants `UPDATE` or `DELETE`, so a saved check or sign-in cannot be rewritten or
+erased afterwards, and a `before insert` trigger sets `logged_at` and `checked_at` from the
+database clock — `default now()` alone only applies when the client leaves the column out,
+which is a back-dating hole. Existing databases get the same rules from `supabase/harden-records.sql`.
 
 ## Authorship
 

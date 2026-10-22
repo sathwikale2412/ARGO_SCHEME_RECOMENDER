@@ -6,6 +6,9 @@ be an exact string test, so "SC" or "Small and Marginal" matched nothing even th
 catalogue has those rows. `_category_key()` plus `_category_matches()` below resolve the
 common spellings and near-misses instead, and stay closed to anything that is not clearly
 one of them — a wrong category silently matching would hand a farmer the wrong advice.
+`search_by_keyword()` no longer mirrors its original either (2026-10-23): the inherited
+version required the entire question to sit inside one field, so every multi-word question
+came back empty. See its docstring.
 """
 
 import difflib
@@ -135,26 +138,49 @@ def recommend(data, schemes):
     return results
 
 
+# Words a farmer uses to ask, not to filter. Left in, they would match half the catalogue.
+_SEARCH_STOPWORDS = frozenset({
+    "i", "a", "am", "an", "are", "any", "about", "applicable", "available", "can", "could",
+    "do", "does", "find", "for", "from", "get", "how", "is", "in", "list", "me", "my",
+    "need", "of", "on", "please", "scheme", "schemes", "should", "show", "tell", "that",
+    "the", "there", "this", "to", "want", "we", "what", "when", "where", "which", "who",
+    "why", "will", "with", "would", "you", "your",
+})
+
+
 def search_by_keyword(message, schemes):
+    """Rank the catalogue against a free-text question.
+
+    The original predicate tested whether the whole message sat inside one field, so
+    "drip irrigation in Maharashtra" matched nothing even though the catalogue holds that
+    row; only a single word fully contained in state, crop or category ever returned.
+    Words are matched instead, across the scheme name as well, and the rows holding more
+    of them come first.
+    """
     message = (message or "").strip().lower()
-    results = []
+    words = [word for word in re.split(r"[^a-z0-9/&]+", message)
+             if word and word not in _SEARCH_STOPWORDS]
+    if not words:
+        return []
 
-    if not message:
-        return results
+    scored = []
+    for position, scheme in enumerate(schemes):
+        haystack = " ".join((
+            str(scheme.get("name") or ""),
+            str(scheme.get("state") or ""),
+            str(scheme.get("crop") or ""),
+            str(scheme.get("category") or ""),
+        )).lower()
+        hits = sum(1 for word in words if word in haystack)
+        if hits:
+            scored.append((hits, position, scheme))
 
-    for scheme in schemes:
-        haystack = [
-            str(scheme.get("state") or "").lower(),
-            str(scheme.get("crop") or "").lower(),
-            str(scheme.get("category") or "").lower(),
-        ]
-        if any(message in field for field in haystack):
-            results.append(
-                {
-                    "name": scheme.get("name"),
-                    "subsidy": scheme.get("subsidy"),
-                    "deadline": scheme.get("deadline"),
-                }
-            )
-
-    return results
+    scored.sort(key=lambda row: (-row[0], row[1]))
+    return [
+        {
+            "name": scheme.get("name"),
+            "subsidy": scheme.get("subsidy"),
+            "deadline": scheme.get("deadline"),
+        }
+        for _hits, _position, scheme in scored[:10]
+    ]

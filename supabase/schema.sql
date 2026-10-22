@@ -61,5 +61,29 @@ create policy "own argo logins read" on public.argo_logins
 create policy "own argo logins insert" on public.argo_logins
   for insert with check (auth.uid() = user_id);
 
-create policy "own argo checks" on public.argo_checks
-  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own argo checks read" on public.argo_checks
+  for select using (auth.uid() = user_id);
+
+create policy "own argo checks insert" on public.argo_checks
+  for insert with check (auth.uid() = user_id);
+
+-- Append-only, and both timestamps stamped here rather than left to the `default now()`
+-- above, which only applies when the client omits the column. recordCheck and recordLogin
+-- both leave them out. See harden-records.sql to apply this to a database that exists.
+create or replace function public.argo_force_login_time()
+returns trigger language plpgsql as $$
+begin new.logged_at := now(); return new; end;
+$$;
+
+create or replace function public.argo_force_check_time()
+returns trigger language plpgsql as $$
+begin new.checked_at := now(); return new; end;
+$$;
+
+create trigger argo_logins_force_time
+  before insert on public.argo_logins
+  for each row execute function public.argo_force_login_time();
+
+create trigger argo_checks_force_time
+  before insert on public.argo_checks
+  for each row execute function public.argo_force_check_time();

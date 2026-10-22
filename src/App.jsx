@@ -105,7 +105,12 @@ export default function App() {
       });
       setResults(data.results ?? []);
       if (userId) {
-        await recordCheck(userId, form, (data.results ?? []).length);
+        // A history write failing must not throw away the recommendations on screen.
+        try {
+          await recordCheck(userId, form, (data.results ?? []).length);
+        } catch (syncErr) {
+          setNotice(syncErr.message);
+        }
         fetchRecentChecks(userId).then(setChecks);
       }
       if (!(data.results ?? []).length) {
@@ -280,7 +285,7 @@ export default function App() {
 
           <section className="panel">
             <h2>Ask in plain words</h2>
-            <p className="lede">Keyword search across state, crop and category.</p>
+            <p className="lede">Keyword search across scheme names, states, crops and categories.</p>
             <form className="form-grid" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }} onSubmit={handleAsk}>
               <div className="field">
                 <label htmlFor="f-question">Your question</label>
