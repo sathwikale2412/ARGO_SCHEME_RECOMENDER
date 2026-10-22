@@ -28,11 +28,18 @@ export async function getSchemes() {
   if (supabase) {
     const { data, error } = await supabase.from('schemes').select('*').order('name');
     if (!error && data?.length) return { schemes: data, source: 'database' };
-    if (error) console.error('Failed to load scheme catalogue', error.message);
+    if (error) {
+      console.error('Failed to load scheme catalogue', error.message);
+    } else {
+      // Attached and readable, but no rows: schema.sql ran and seed.sql did not. This is
+      // reported instead of falling through, because serving the demo rows here would make
+      // figures shipped with the code look like the real register.
+      return { schemes: [], source: 'empty' };
+    }
   }
 
-  // No database attached, or it is still unseeded: the API serves the sample catalogue
-  // bundled with it, so the filters have something to offer instead of nothing.
+  // No database attached: the gateway serves the sample catalogue bundled with it, so the
+  // filters have something to offer instead of nothing.
   try {
     const response = await fetch(`${API_BASE}/schemes`);
     const body = await response.json();

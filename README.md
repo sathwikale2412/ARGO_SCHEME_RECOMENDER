@@ -105,8 +105,10 @@ through it would be rejected by RLS. That is why `POST /api/schemes` returns `40
 1. Create (or reuse) a project. **Use the same project as your other apps** — they then
    share one user pool, so a single account works everywhere.
 2. In the SQL editor, run `supabase/schema.sql`, then `supabase/seed.sql`. The seed holds the
-   same 36 rows as `api/catalogue.py` and is generated from it — change the sample data there
-   and regenerate rather than editing the SQL.
+   same 36 rows as `api/catalogue.py`, kept in step by hand — there is no generator script in
+   this repo, so if you change the sample data in `api/catalogue.py`, update `seed.sql` to
+   match in the same commit. Running the schema without the seed leaves the app reporting an
+   empty table, which the header badge states plainly.
 3. Copy the Project URL and the **anon** public key. Never use the `service_role` key in
    this project — the client and the function both run as anonymous, guarded by RLS.
 

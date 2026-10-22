@@ -13,7 +13,12 @@ import AuthScreen from './components/AuthScreen';
 
 const EMPTY_FORM = { state: '', crop: '', category: '', land: '', income: '' };
 
-const CATALOGUE_LABEL = { database: 'live database', sample: 'sample data', none: 'not loaded' };
+const CATALOGUE_LABEL = {
+  database: 'live database',
+  sample: 'sample data',
+  empty: 'table is empty',
+  none: 'not loaded'
+};
 
 const EMPTY_SCHEME = {
   name: '',
@@ -191,6 +196,13 @@ export default function App() {
               Sample catalogue — this deployment has no database attached, so the schemes below ship
               with the code. Their bands and figures are illustrative: attach Supabase and run
               supabase/seed.sql before quoting anything to a farmer.
+            </p>
+          )}
+          {catalogueSource === 'empty' && (
+            <p className="notice">
+              The database is attached but the scheme table holds no rows, so the filters have
+              nothing to offer. This deployment ran supabase/schema.sql without
+              supabase/seed.sql — run the seed in the Supabase SQL editor, then reload.
             </p>
           )}
           <section className="panel">
