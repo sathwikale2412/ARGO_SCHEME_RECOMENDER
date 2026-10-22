@@ -12,7 +12,7 @@ created by the first `vercel deploy`.)
 | Part | Status |
 | --- | --- |
 | Eligibility predicate (`api/recommender.py`) | Real logic, kept verbatim from the original `backend/recommender.py`. |
-| Scheme catalogue | Real — lives in Supabase table `schemes`. Empty until you run `supabase/seed.sql`. |
+| Scheme catalogue | Supabase table `schemes` is the live one. Until it is attached and seeded, `api/catalogue.py` ships 36 sample schemes (8 categories, 15 states) so the filters still have something to match; every answer says which source served it. |
 | Login / signup | Real — Supabase GoTrue, email + password. |
 | Sign-in audit trail | Real — table `argo_logins`, written on every `SIGNED_IN`. |
 | Eligibility-check history | Real — table `argo_checks`. |
@@ -38,14 +38,20 @@ Browser (React + Vite)  ──▶  /api/*  (Vercel Python function)  ──▶  
 
 | Endpoint | Method | Body | Returns |
 | --- | --- | --- | --- |
-| `/api/health` | GET | — | `{ status, service, database: "configured" \| "missing env" }` |
-| `/api/schemes` | GET | — | every scheme in the catalogue |
+| `/api/health` | GET | — | `{ status, service, catalogue: "database" \| "sample" }` |
+| `/api/schemes` | GET | — | `{ count, schemes, catalogue }` — every scheme in the catalogue |
 | `/api/schemes` | POST | — | `405` by design; see "Writes" below |
-| `/api/get_schemes` | POST | `{state, crop, category, land, income}` | `{ status, results: [...] }` |
-| `/api/chat` | POST | `{ message }` | `{ reply, schemes }` — keyword search over state/crop/category |
+| `/api/get_schemes` | POST | `{state, crop, category, land, income}` | `{ status, results, catalogue }` |
+| `/api/chat` | POST | `{ message }` | `{ reply, schemes, catalogue }` — keyword search over state/crop/category |
 
-`503` means the function is deployed without `SUPABASE_URL` / `SUPABASE_ANON_KEY`;
-it never falls back to fake data.
+Every answer carries `catalogue`, so a caller can tell a live register from demo data:
+
+* `"database"` — `SUPABASE_URL` / `SUPABASE_ANON_KEY` are set, rows come from Postgres.
+* `"sample"` — they are not, so `api/catalogue.py` serves its bundled schemes. Without that
+  the site answered 503 and every dropdown was empty, which is not a usable deployment.
+
+A database that *is* configured but read fails (missing table, network) is a 500, never a
+silent swap to sample rows: demo figures must not appear under a "live" label.
 
 `/api/get_schemes` validates every field before touching the database: a missing state, a
 non-numeric `land` or a negative `income` answers `400` with the reason, because reading
@@ -61,8 +67,13 @@ warm instance, so it is a brake rather than a guarantee: a stateless function ca
 a single global count.
 
 ```bash
-python api/test_gateway.py   # 17 checks — validation, generic errors, rate limit; no Supabase needed
+python api/test_gateway.py   # 25 checks — validation, sample catalogue, generic errors, rate limit
 ```
+
+### Reads
+
+The browser asks Supabase for the catalogue first (`src/lib/cloud.js:getSchemes`) and, when
+there is no client or the table is still empty, falls back to `GET /api/schemes`.
 
 ### Writes
 
@@ -77,7 +88,9 @@ through it would be rejected by RLS. That is why `POST /api/schemes` returns `40
 
 1. Create (or reuse) a project. **Use the same project as your other apps** — they then
    share one user pool, so a single account works everywhere.
-2. In the SQL editor, run `supabase/schema.sql`, then `supabase/seed.sql`.
+2. In the SQL editor, run `supabase/schema.sql`, then `supabase/seed.sql`. The seed holds the
+   same 36 rows as `api/catalogue.py` and is generated from it — change the sample data there
+   and regenerate rather than editing the SQL.
 3. Copy the Project URL and the **anon** public key. Never use the `service_role` key in
    this project — the client and the function both run as anonymous, guarded by RLS.
 

@@ -13,6 +13,8 @@ import AuthScreen from './components/AuthScreen';
 
 const EMPTY_FORM = { state: '', crop: '', category: '', land: '', income: '' };
 
+const CATALOGUE_LABEL = { database: 'live database', sample: 'sample data', none: 'not loaded' };
+
 const EMPTY_SCHEME = {
   name: '',
   state: '',
@@ -34,6 +36,7 @@ export default function App() {
   const { ready, cloudEnabled, userId, email, isGuest, signOut } = useAuth();
 
   const [schemes, setSchemes] = useState([]);
+  const [catalogueSource, setCatalogueSource] = useState('none');
   const [form, setForm] = useState(EMPTY_FORM);
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -50,7 +53,10 @@ export default function App() {
   const [schemeForm, setSchemeForm] = useState(EMPTY_SCHEME);
 
   const refreshSchemes = useCallback(() => {
-    getSchemes().then(setSchemes);
+    getSchemes().then(({ schemes: rows, source }) => {
+      setSchemes(rows);
+      setCatalogueSource(source);
+    });
   }, []);
 
   useEffect(() => {
@@ -72,7 +78,9 @@ export default function App() {
   }, [userId]);
 
   const states = distinct(schemes.map((s) => s.state));
-  const crops = distinct(schemes.map((s) => s.crop));
+  // A scheme that covers several crops lists them in one comma-separated field, and the
+  // matcher looks for the user's word inside it — so the picker offers each crop alone.
+  const crops = distinct(schemes.flatMap((s) => String(s.crop ?? '').split(',')));
   const categories = distinct(schemes.map((s) => s.category));
 
   const setField = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -167,7 +175,7 @@ export default function App() {
         </div>
 
         <div className="account">
-          <span className="badge">{schemes.length} schemes in catalogue</span>
+          <span className="badge">{schemes.length} schemes · {CATALOGUE_LABEL[catalogueSource]}</span>
           {cloudEnabled && (
             <button type="button" className="btn" onClick={() => setShowAccount((v) => !v)}>
               {userId ? 'Account' : 'Guest session'}
@@ -178,11 +186,18 @@ export default function App() {
 
       <main className="main">
         <div>
+          {catalogueSource === 'sample' && (
+            <p className="notice">
+              Sample catalogue — this deployment has no database attached, so the schemes below ship
+              with the code. Their bands and figures are illustrative: attach Supabase and run
+              supabase/seed.sql before quoting anything to a farmer.
+            </p>
+          )}
           <section className="panel">
             <h2>Eligibility check</h2>
             <p className="lede">
-              Filters run against the live scheme catalogue. State and crop match on substring, category must match
-              exactly, and land and income have to fall inside the band each scheme declares.
+              Filters run against the scheme catalogue. State and crop match on substring, category
+              must match exactly, and land and income have to fall inside the band each scheme declares.
             </p>
 
             <form className="form-grid" onSubmit={handleSearch}>

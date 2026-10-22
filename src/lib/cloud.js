@@ -25,13 +25,24 @@ export const recommendSchemes = (form) => callApi('get_schemes', form);
 export const askAboutSchemes = (message) => callApi('chat', { message });
 
 export async function getSchemes() {
-  if (!supabase) return [];
-  const { data, error } = await supabase.from('schemes').select('*').order('name');
-  if (error) {
-    console.error('Failed to load scheme catalogue', error.message);
-    return [];
+  if (supabase) {
+    const { data, error } = await supabase.from('schemes').select('*').order('name');
+    if (!error && data?.length) return { schemes: data, source: 'database' };
+    if (error) console.error('Failed to load scheme catalogue', error.message);
   }
-  return data ?? [];
+
+  // No database attached, or it is still unseeded: the API serves the sample catalogue
+  // bundled with it, so the filters have something to offer instead of nothing.
+  try {
+    const response = await fetch(`${API_BASE}/schemes`);
+    const body = await response.json();
+    if (response.ok && Array.isArray(body.schemes)) {
+      return { schemes: body.schemes, source: body.catalogue || 'sample' };
+    }
+  } catch {
+    /* left empty; the page says the catalogue could not be loaded */
+  }
+  return { schemes: [], source: 'none' };
 }
 
 export async function recordLogin(userId, email) {

@@ -13,8 +13,9 @@ import uuid
 
 from flask import Flask, jsonify, request
 
+import catalogue
 import recommender
-from supabase_client import NotConfigured, fetch_schemes, is_configured
+from supabase_client import fetch_schemes, is_configured
 
 app = Flask(__name__)
 
@@ -48,6 +49,19 @@ def _body():
     return data if isinstance(data, dict) else {}
 
 
+def _catalogue():
+    """Return (rows, source).
+
+    Postgres is the catalogue. The bundled sample set is what keeps the service answering
+    on a deployment with no Supabase env, instead of a 503 and three empty dropdowns.
+    A configured-but-broken database is a 500, never a quiet swap to sample rows: demo
+    figures must not be mistaken for the register.
+    """
+    if is_configured():
+        return fetch_schemes(), "database"
+    return catalogue.SCHEMES, "sample"
+
+
 @app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
 @app.route("/<path:path>", methods=["GET", "POST"])
 def gateway(path):
@@ -58,7 +72,7 @@ def gateway(path):
             {
                 "status": "ok",
                 "service": "argo-api",
-                "database": "configured" if is_configured() else "missing env",
+                "catalogue": "database" if is_configured() else "sample",
             }
         )
 
@@ -99,21 +113,29 @@ def gateway(path):
             ), 400
 
     try:
-        schemes = fetch_schemes()
+        schemes, source = _catalogue()
 
         if action == "schemes":
-            return jsonify({"count": len(schemes), "schemes": schemes})
+            return jsonify({"count": len(schemes), "schemes": schemes, "catalogue": source})
 
         if action == "get_schemes":
-            return jsonify({"status": "ok", "results": recommender.recommend(_body(), schemes)})
+            return jsonify(
+                {
+                    "status": "ok",
+                    "results": recommender.recommend(_body(), schemes),
+                    "catalogue": source,
+                }
+            )
 
         results = recommender.search_by_keyword(_body().get("message", ""), schemes)
         if results:
-            return jsonify({"reply": "Here are matching schemes:", "schemes": results})
-        return jsonify({"reply": "No schemes found for your query.", "schemes": []})
+            return jsonify(
+                {"reply": "Here are matching schemes:", "schemes": results, "catalogue": source}
+            )
+        return jsonify(
+            {"reply": "No schemes found for your query.", "schemes": [], "catalogue": source}
+        )
 
-    except NotConfigured as err:
-        return jsonify({"status": "unavailable", "message": str(err)}), 503
     except Exception:  # noqa: BLE001
         # The traceback goes to the platform log, never to the caller: an exception message
         # repeats the SQL fragment or PostgREST body that set it off, and this endpoint is
