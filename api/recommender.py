@@ -1,10 +1,31 @@
 """Scheme matching rules.
 
-The predicate is the one the original backend/recommender.py used, kept verbatim so
-eligibility behaviour does not drift: state and crop are substring matches, category is
-an exact match, and land/income are range checks. Only the data source changed — rows
-come from Postgres through PostgREST instead of a local SQLite file.
+State, crop, land and income use the original backend/recommender.py predicate verbatim.
+Only the category comparison was changed (2026-10-22, at the owner's request): it used to
+be an exact string test, so "SC" or "Small and Marginal" matched nothing even though the
+catalogue has those rows. `_category_key()` plus `_category_matches()` below resolve the
+common spellings and near-misses instead, and stay closed to anything that is not clearly
+one of them — a wrong category silently matching would hand a farmer the wrong advice.
 """
+
+import difflib
+import re
+
+# Folded category spellings that mean the same row group. Keys are the normalised form
+# produced by _category_key(); keep this list to genuine synonyms and abbreviations.
+_CATEGORY_ALIASES = {
+    "sc": "scst", "st": "scst", "caste": "scst", "tribe": "scst", "tribal": "scst",
+    "schedulecaste": "scst", "scheduledtribe": "scst", "scsttribal": "scst",
+    "obc": "obc", "backwardsclass": "obc",
+    "gen": "general", "general": "general", "open": "general", "unreserved": "general",
+    "women": "women", "woman": "women", "female": "women",
+    "youth": "youth", "young": "youth", "younger": "youth",
+    "small": "smallmarginal", "marginal": "smallmarginal", "smallholder": "smallmarginal",
+    "tenant": "tenantfarmer", "tenancy": "tenantfarmer", "lease": "tenantfarmer",
+    "organic": "organic", "natural": "organic", "naturalfarming": "organic",
+}
+
+_PUNCTUATION = re.compile(r"[^a-z0-9]+")
 
 
 def _to_float(value):
@@ -27,6 +48,32 @@ def text_field(data, *names):
         if value:
             return str(value).strip().lower()
     return ""
+
+
+def _category_key(text):
+    """Fold a category name into the form the alias table speaks: no spaces, no
+    punctuation, no filler 'and'."""
+    folded = _PUNCTUATION.sub("", str(text or "").lower().replace(" and ", " "))
+    return _CATEGORY_ALIASES.get(folded, folded)
+
+
+def _category_matches(user_value, scheme_value):
+    """True when a typed category clearly names the scheme's category.
+
+    Exact after folding, one value being the other's prefix (so "women farmer" is Women),
+    or a close spelling ("tenent farmer"). The fuzzy step needs a high ratio on purpose:
+    matching across two different eligibility groups would return advice for a scheme the
+    farmer is not in, which is worse than the empty result the page explains.
+    """
+    if not user_value:
+        return False
+    scheme_key = _category_key(scheme_value)
+    if user_value == scheme_key:
+        return True
+    shortest, longest = sorted((user_value, scheme_key), key=len)
+    if len(shortest) >= 4 and longest.startswith(shortest):
+        return True
+    return difflib.SequenceMatcher(None, user_value, scheme_key).ratio() >= 0.8
 
 
 def validate_search(data):
@@ -53,7 +100,7 @@ def validate_search(data):
 def recommend(data, schemes):
     user_state = text_field(data, "state", "State")
     user_crop = text_field(data, "crop", "Crop")
-    user_category = text_field(data, "category", "Category")
+    user_category = _category_key(text_field(data, "category", "Category"))
     user_land = _to_float(data.get("land") or data.get("Land"))
     user_income = _to_float(data.get("income") or data.get("Income"))
 
@@ -65,7 +112,6 @@ def recommend(data, schemes):
     for scheme in schemes:
         scheme_state = str(scheme.get("state") or "").strip().lower()
         scheme_crop = str(scheme.get("crop") or "").strip().lower()
-        scheme_category = str(scheme.get("category") or "").strip().lower()
         min_land = _to_float(scheme.get("min_land")) or 0.0
         max_land = _to_float(scheme.get("max_land")) or 0.0
         income_limit = _to_float(scheme.get("income_limit")) or 0.0
@@ -73,7 +119,7 @@ def recommend(data, schemes):
         if (
             user_state in scheme_state
             and user_crop in scheme_crop
-            and user_category == scheme_category
+            and _category_matches(user_category, scheme.get("category"))
             and min_land <= user_land <= max_land
             and user_income <= income_limit
         ):

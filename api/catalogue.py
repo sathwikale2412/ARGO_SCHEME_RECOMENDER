@@ -16,8 +16,10 @@ these keys directly. Two rules from that matcher shaped the data:
     covering several crops lists them together ("Rice, Maize") and a blank state would
     match nothing at all — every row names one state, and a national scheme is repeated
     per state instead.
-*   `category` is an **exact** match, so the category spellings below are the only ones a
-    visitor can pick; the frontend builds its dropdown from these distinct values.
+*   `category` is folded before it is compared (punctuation, spaces and "and" removed, then
+    a synonym table), so the spellings below are the canonical ones the frontend offers and
+    a visitor typing `SC`, `Small and Marginal` or `women farmer` still lands on the right
+    group. Keeping one consistent spelling per row is what makes that work.
 """
 
 SCHEMES = [

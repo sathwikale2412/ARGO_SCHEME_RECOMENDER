@@ -11,7 +11,7 @@ created by the first `vercel deploy`.)
 
 | Part | Status |
 | --- | --- |
-| Eligibility predicate (`api/recommender.py`) | Real logic, kept verbatim from the original `backend/recommender.py`. |
+| Eligibility predicate (`api/recommender.py`) | Real logic, kept verbatim from the original `backend/recommender.py` **except the category test** — see "Matching" below. |
 | Scheme catalogue | Supabase table `schemes` is the live one. Until it is attached and seeded, `api/catalogue.py` ships 36 sample schemes (8 categories, 15 states) so the filters still have something to match; every answer says which source served it. |
 | Login / signup | Real — Supabase GoTrue, email + password. |
 | Sign-in audit trail | Real — table `argo_logins`, written on every `SIGNED_IN`. |
@@ -67,8 +67,24 @@ warm instance, so it is a brake rather than a guarantee: a stateless function ca
 a single global count.
 
 ```bash
-python api/test_gateway.py   # 25 checks — validation, sample catalogue, generic errors, rate limit
+python api/test_gateway.py   # 30 checks — validation, sample catalogue, category matching, generic errors, rate limit
 ```
+
+### Matching
+
+State and crop are substring tests and land/income are range tests, exactly as the original
+`backend/recommender.py` wrote them. The category test is the one deliberate deviation:
+`_category_key()` folds the input (lowercase, punctuation and spaces removed, "and" dropped,
+then a synonym table — `SC`/`ST`/`tribal` → `scst`, `gen`/`open` → `general`,
+`natural farming` → `organic`) and `_category_matches()` accepts an equal key, one key being
+the other's prefix (`women farmer` → Women), or a close spelling above a 0.8 similarity
+ratio (`tenent farmer` → Tenant Farmer).
+
+It stays closed to anything ambiguous on purpose: `farmer`, `reserved` or a real group used
+against the wrong rows matches **nothing**, because resolving a farmer into a scheme group
+they are not in is worse than the empty result the page explains. The dropdown is still
+built from the distinct categories in the catalogue, so the golden path never relies on
+tolerance.
 
 ### Reads
 

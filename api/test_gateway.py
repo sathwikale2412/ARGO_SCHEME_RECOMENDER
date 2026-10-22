@@ -70,6 +70,46 @@ check('an eligibility check matches against the sample rows',
       hit['results'])
 chat = client.post('/api/chat', json={'message': 'organic'}).get_json()
 check('keyword search covers the sample rows', len(chat['schemes']) >= 1, chat['schemes'])
+
+# --- category spelling tolerance --------------------------------------------------------
+def names(payload):
+    return sorted(row['name'] for row in payload.get('results', []))
+
+
+sc = client.post('/api/get_schemes', json={
+    'state': 'Telangana', 'crop': 'rice', 'category': 'SC',
+    'land': '4', 'income': '150000',
+}).get_json()
+check('"SC" reaches the SC/ST rows', 'SC/ST Farm Mechanisation Grant' in names(sc), names(sc))
+
+small = client.post('/api/get_schemes', json={
+    'state': 'Telangana', 'crop': 'tomato', 'category': 'Small and Marginal',
+    'land': '1', 'income': '100000',
+}).get_json()
+check('"Small and Marginal" reaches Small & Marginal',
+      'Rythu Bharosa Kitchen Garden' in names(small), names(small))
+
+women = client.post('/api/get_schemes', json={
+    'state': 'Uttar Pradesh', 'crop': 'fodder', 'category': 'women farmer',
+    'land': '2', 'income': '200000',
+}).get_json()
+check('a prefix like "women farmer" stays in Women',
+      names(women) == ['Dairy Animal Purchase Assistance'], names(women))
+
+wrong = client.post('/api/get_schemes', json={
+    'state': 'Telangana', 'crop': 'rice', 'category': 'farmer',
+    'land': '4', 'income': '150000',
+}).get_json()
+check('an ambiguous category matches no group instead of guessing',
+      names(wrong) == [], names(wrong))
+
+cross = client.post('/api/get_schemes', json={
+    'state': 'Telangana', 'crop': 'rice', 'category': 'organic',
+    'land': '4', 'income': '150000',
+}).get_json()
+check('one group never resolves to another', names(cross) == [], names(cross))
+index._hits.clear()
+index.is_configured = configured
 index._hits.clear()
 index.is_configured = configured
 

@@ -104,7 +104,7 @@ export default function App() {
         fetchRecentChecks(userId).then(setChecks);
       }
       if (!(data.results ?? []).length) {
-        setNotice('No scheme matched those inputs. Widen the filters — the rules need an exact category, and land and income inside the band.');
+        setNotice('No scheme matched those inputs. Widen the filters — land and income have to fall inside the band, and the category has to name one the catalogue actually lists.');
       }
     } catch (err) {
       setResults(null);
@@ -196,8 +196,9 @@ export default function App() {
           <section className="panel">
             <h2>Eligibility check</h2>
             <p className="lede">
-              Filters run against the scheme catalogue. State and crop match on substring, category
-              must match exactly, and land and income have to fall inside the band each scheme declares.
+              Filters run against the scheme catalogue. State and crop match on substring, category is
+              matched by name (so SC, SC/ST and Small and Marginal all resolve), and land and income
+              have to fall inside the band each scheme declares.
             </p>
 
             <form className="form-grid" onSubmit={handleSearch}>
@@ -215,12 +216,10 @@ export default function App() {
 
               <div className="field">
                 <label htmlFor="f-category">Category</label>
-                <select id="f-category" value={form.category} onChange={setField('category')}>
-                  <option value="">Choose a category</option>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                {/* Typed, not picked: the matcher folds spelling and synonyms, so "SC" or
+                    "Small and Marginal" work even though the list shows one spelling each. */}
+                <input id="f-category" list="category-options" value={form.category} onChange={setField('category')} placeholder="General" />
+                <datalist id="category-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
               </div>
 
               <div className="field">
