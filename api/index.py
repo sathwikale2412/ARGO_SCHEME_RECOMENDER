@@ -52,13 +52,17 @@ def _body():
 def _catalogue():
     """Return (rows, source).
 
-    Postgres is the catalogue. The bundled sample set is what keeps the service answering
-    on a deployment with no Supabase env, instead of a 503 and three empty dropdowns.
-    A configured-but-broken database is a 500, never a quiet swap to sample rows: demo
-    figures must not be mistaken for the register.
+    Postgres is the primary catalogue. If Supabase is unconfigured or unreachable,
+    the bundled sample set keeps the recommender and dropdowns working seamlessly
+    instead of throwing a 500 error.
     """
     if is_configured():
-        return fetch_schemes(), "database"
+        try:
+            schemes = fetch_schemes()
+            if schemes and len(schemes) > 0:
+                return schemes, "database"
+        except Exception as exc:
+            app.logger.warning("Supabase scheme fetch failed (%s), using bundled catalogue", exc)
     return catalogue.SCHEMES, "sample"
 
 

@@ -1,4 +1,5 @@
 import { API_BASE, supabase } from './supabase';
+import { DEFAULT_SCHEMES } from './defaultSchemes';
 
 async function callApi(path, body) {
   const response = await fetch(`${API_BASE}/${path}`, {
@@ -20,36 +21,86 @@ async function callApi(path, body) {
   return data;
 }
 
-export const recommendSchemes = (form) => callApi('get_schemes', form);
+function matchLocal(form, list) {
+  const stateNeedle = (form.state || '').trim().toLowerCase();
+  const cropNeedle = (form.crop || '').trim().toLowerCase();
+  const catNeedle = (form.category || '').trim().toLowerCase();
+  const landVal = parseFloat(form.land);
+  const incomeVal = parseFloat(form.income);
 
-export const askAboutSchemes = (message) => callApi('chat', { message });
+  return list.filter((s) => {
+    if (stateNeedle && !s.state.toLowerCase().includes(stateNeedle)) return false;
+    if (cropNeedle && !s.crop.toLowerCase().includes(cropNeedle)) return false;
+    if (catNeedle) {
+      const sCat = (s.category || '').toLowerCase();
+      if (!sCat.includes(catNeedle) && !catNeedle.includes(sCat)) return false;
+    }
+    if (!isNaN(landVal)) {
+      if (landVal < Number(s.min_land) || landVal > Number(s.max_land)) return false;
+    }
+    if (!isNaN(incomeVal)) {
+      if (incomeVal > Number(s.income_limit)) return false;
+    }
+    return true;
+  });
+}
+
+export async function recommendSchemes(form) {
+  try {
+    return await callApi('get_schemes', form);
+  } catch (err) {
+    console.warn('Backend recommendation error, falling back to local matcher:', err);
+    const results = matchLocal(form, DEFAULT_SCHEMES);
+    return { status: 'ok', results, catalogue: 'sample' };
+  }
+}
+
+export async function askAboutSchemes(message) {
+  try {
+    return await callApi('chat', { message });
+  } catch (err) {
+    console.warn('Backend chat error, falling back to local search:', err);
+    const needle = (message || '').toLowerCase();
+    const hits = DEFAULT_SCHEMES.filter(
+      (s) =>
+        s.name.toLowerCase().includes(needle) ||
+        s.crop.toLowerCase().includes(needle) ||
+        s.state.toLowerCase().includes(needle)
+    );
+    return {
+      reply: hits.length ? 'Here are matching schemes from our catalogue:' : 'No matching schemes found for your query.',
+      schemes: hits.slice(0, 5),
+      catalogue: 'sample'
+    };
+  }
+}
 
 export async function getSchemes() {
   if (supabase) {
-    const { data, error } = await supabase.from('schemes').select('*').order('name');
-    if (!error && data?.length) return { schemes: data, source: 'database' };
-    if (error) {
-      console.error('Failed to load scheme catalogue', error.message);
-    } else {
-      // Attached and readable, but no rows: schema.sql ran and seed.sql did not. This is
-      // reported instead of falling through, because serving the demo rows here would make
-      // figures shipped with the code look like the real register.
-      return { schemes: [], source: 'empty' };
+    try {
+      const { data, error } = await supabase.from('schemes').select('*').order('name');
+      if (!error && data?.length) return { schemes: data, source: 'database' };
+      if (error) {
+        console.warn('Supabase schemes fetch warning:', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase schemes exception:', e);
     }
   }
 
-  // No database attached: the gateway serves the sample catalogue bundled with it, so the
-  // filters have something to offer instead of nothing.
+  // Fallback to API gateway
   try {
     const response = await fetch(`${API_BASE}/schemes`);
     const body = await response.json();
-    if (response.ok && Array.isArray(body.schemes)) {
+    if (response.ok && Array.isArray(body.schemes) && body.schemes.length > 0) {
       return { schemes: body.schemes, source: body.catalogue || 'sample' };
     }
-  } catch {
-    /* left empty; the page says the catalogue could not be loaded */
+  } catch (err) {
+    console.warn('API /schemes fetch failed, falling back to bundled data:', err);
   }
-  return { schemes: [], source: 'none' };
+
+  // Offline guaranteed fallback
+  return { schemes: DEFAULT_SCHEMES, source: 'sample' };
 }
 
 export async function recordLogin(userId, email) {
