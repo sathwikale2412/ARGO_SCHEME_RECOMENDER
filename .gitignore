@@ -19,3 +19,6 @@ backend/schemes.db
 
 .vercel
 .netlify
+
+.vercel
+.env*
